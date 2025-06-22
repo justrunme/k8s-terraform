@@ -1,15 +1,12 @@
-name: Terraform CI
+name: Terraform AutoFmt
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
-  terraform-check:
+  autofmt:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,15 +14,20 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Format Check
-        id: fmt
-        run: terraform fmt -check -diff -recursive
+      - name: Terraform Format (auto-fix)
+        run: terraform fmt -recursive
 
-      - name: Fail if not formatted
-        if: failure() && steps.fmt.outcome == 'failure'
+      - name: Commit & Push if changed
         run: |
-          echo "::error::Terraform files are not formatted. Please run 'terraform fmt' locally and push again."
-          exit 1
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: terraform auto-format"
+            git push
+          else
+            echo "Nothing to commit."
+          fi
 
       - name: Terraform Init
         run: terraform init
@@ -37,30 +39,3 @@ jobs:
         env:
           TF_VAR_demo_password: testpassword123
         run: terraform plan -lock=false
-
-  terraform-autofix:
-    # Запускается только если предыдущая job провалилась из-за форматирования, и только на push
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    needs: terraform-check
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Fmt (autofix)
-        run: terraform fmt -recursive
-
-      - name: Commit changes if any
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          if ! git diff --cached --quiet; then
-            git commit -m "ci: terraform fmt auto-fix"
-            git push
-          else
-            echo "Nothing to commit."
-          fi
