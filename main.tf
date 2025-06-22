@@ -6,7 +6,7 @@ resource "kubernetes_namespace" "demo" {
   metadata {
     name = "demo"
   }
-}
+}   
 
 resource "kubernetes_config_map" "nginx_config" {
   metadata {
