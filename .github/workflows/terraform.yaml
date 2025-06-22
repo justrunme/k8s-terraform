@@ -16,8 +16,15 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Format
-        run: terraform fmt -check
+      - name: Terraform Format Check
+        id: fmt
+        run: terraform fmt -check -diff -recursive
+      # Добавим комментарий с diff при ошибке форматирования
+      - name: Fail if not formatted
+        if: failure() && steps.fmt.outcome == 'failure'
+        run: |
+          echo "::error::Terraform files are not formatted. Please run 'terraform fmt' locally and push again."
+          exit 1
 
       - name: Terraform Init
         run: terraform init
