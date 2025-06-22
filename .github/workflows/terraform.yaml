@@ -7,8 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  terraform:
+  terraform-check:
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,7 +20,7 @@ jobs:
       - name: Terraform Format Check
         id: fmt
         run: terraform fmt -check -diff -recursive
-      # Добавим комментарий с diff при ошибке форматирования
+
       - name: Fail if not formatted
         if: failure() && steps.fmt.outcome == 'failure'
         run: |
@@ -34,5 +35,32 @@ jobs:
 
       - name: Terraform Plan
         env:
-          TF_VAR_demo_password: testpassword123   # тестовый секрет для CI
+          TF_VAR_demo_password: testpassword123
         run: terraform plan -lock=false
+
+  terraform-autofix:
+    # Запускается только если предыдущая job провалилась из-за форматирования, и только на push
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: terraform-check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Fmt (autofix)
+        run: terraform fmt -recursive
+
+      - name: Commit changes if any
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: terraform fmt auto-fix"
+            git push
+          else
+            echo "Nothing to commit."
+          fi
