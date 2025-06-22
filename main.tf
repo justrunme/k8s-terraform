@@ -3,7 +3,6 @@ provider "kubernetes" {
 }
 
 
-
 resource "kubernetes_namespace" "demo" {
   metadata {
     name = "demo"
