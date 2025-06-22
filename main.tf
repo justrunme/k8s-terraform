@@ -14,7 +14,7 @@ resource "kubernetes_config_map" "nginx_config" {
     namespace = kubernetes_namespace.demo.metadata[0].name
   }
   data = {
-    demo_title = "K8s Demo via Terraform"
+    demo_title   = "K8s Demo via Terraform"
     "index.html" = <<EOT
 <html>
   <head><title>Demo</title></head>
@@ -46,7 +46,7 @@ resource "kubernetes_persistent_volume" "demo_pv" {
     capacity = {
       storage = "1Gi"
     }
-    access_modes = ["ReadWriteOnce"]
+    access_modes       = ["ReadWriteOnce"]
     storage_class_name = ""
     persistent_volume_source {
       host_path {
@@ -63,7 +63,7 @@ resource "kubernetes_persistent_volume_claim" "demo_pvc" {
     namespace = kubernetes_namespace.demo.metadata[0].name
   }
   spec {
-    access_modes = ["ReadWriteOnce"]
+    access_modes       = ["ReadWriteOnce"]
     resources {
       requests = {
         storage = "1Gi"
