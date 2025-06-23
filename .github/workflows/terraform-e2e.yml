@@ -10,11 +10,30 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    env:
-      TF_VAR_demo_password: testpassword123   # <--- Секрет на весь job!
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Format (auto-fix)
+        run: terraform fmt -recursive
+
+      - name: Commit & Push if changed
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff --cached --quiet; then
+            git commit -m "ci: terraform auto-format"
+            git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+          else
+            echo "Nothing to commit."
+          fi
 
       - name: Install Kind & Kubectl
         run: |
@@ -32,8 +51,11 @@ jobs:
         run: |
           kubectl rollout status deployment/coredns -n kube-system --timeout=90s
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      # Prepare hostPath for PV BEFORE terraform apply!
+      - name: Prepare hostPath for PV (Kind)
+        run: |
+          docker exec kind-control-plane mkdir -p /tmp/demo-data
+          docker exec kind-control-plane chmod 777 /tmp/demo-data
 
       - name: Terraform Init
         run: terraform init
@@ -42,9 +64,13 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
+        env:
+          TF_VAR_demo_password: testpassword123
         run: terraform plan -lock=false
 
       - name: Terraform Apply (Test)
+        env:
+          TF_VAR_demo_password: testpassword123
         run: terraform apply -auto-approve
 
       # ------------------- E2E/Smoke тесты -------------------
@@ -67,8 +93,6 @@ jobs:
 
       - name: Port-Forward & cURL Test (NodePort)
         run: |
-          kubectl get svc nginx-service -n demo
-          kubectl get pods -n demo
           kubectl port-forward svc/nginx-service 8080:80 -n demo &
           sleep 5
           curl -sf http://localhost:8080 | grep "K8s Demo via Terraform"
@@ -93,7 +117,6 @@ jobs:
           sleep 10
           curl -sfH "Host: nginx-demo.local" http://localhost:8081/ | grep "K8s Demo via Terraform"
 
-      # HPA тест (если нужен)
       - name: Check HPA Status
         run: |
           kubectl get hpa nginx-hpa -n demo
@@ -102,6 +125,8 @@ jobs:
 
       - name: Terraform Destroy
         if: always()
+        env:
+          TF_VAR_demo_password: testpassword123
         run: terraform destroy -auto-approve
 
       - name: Delete Kind Cluster
