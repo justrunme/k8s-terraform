@@ -7,8 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,6 +26,10 @@ jobs:
       - name: Create Kind Cluster
         run: kind create cluster --wait 60s
 
+      - name: Wait for Cluster DNS (CoreDNS)
+        run: |
+          kubectl rollout status deployment/coredns -n kube-system --timeout=90s
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
@@ -37,17 +42,66 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -lock=false
 
-      # --- Можно включить APPLY (необязательно, если только проверяешь план)
-      # - name: Terraform Apply
-      #   run: terraform apply -auto-approve
+      - name: Terraform Apply (Test)
+        run: terraform apply -auto-approve
 
-      # --- SMOKE TEST: Проверка деплоя (замени на свой namespace/ресурсы при необходимости)
-      - name: Smoke Test: Check NGINX Pod
+      # ------------------- E2E/Smoke тесты -------------------
+
+      - name: Wait for Demo Namespace
         run: |
-          kubectl get pods -n demo || exit 1
-          kubectl get svc -n demo || exit 1
+          for i in {1..30}; do kubectl get ns demo && break || sleep 2; done
 
-      # --- После теста чистим кластер
+      - name: Wait for NGINX Pods
+        run: |
+          kubectl rollout status deployment/nginx-demo -n demo --timeout=120s
+
+      - name: PVC Bound Test
+        run: |
+          kubectl get pvc demo-pvc -n demo -o jsonpath='{.status.phase}' | grep Bound
+
+      - name: Check Service
+        run: |
+          kubectl get svc nginx-service -n demo
+
+      - name: Port-Forward & cURL Test (NodePort)
+        run: |
+          kubectl get svc nginx-service -n demo
+          kubectl get pods -n demo
+          kubectl port-forward svc/nginx-service 8080:80 -n demo &
+          sleep 5
+          curl -sf http://localhost:8080 | grep "K8s Demo via Terraform"
+
+      # Для Ingress — установка ingress-nginx-контроллера, если нужно:
+      - name: Install Ingress Controller (ingress-nginx)
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/kind/deploy.yaml
+          kubectl rollout status deployment/ingress-nginx-controller -n ingress-nginx --timeout=120s
+
+      - name: Wait for Ingress Ready
+        run: |
+          kubectl wait --namespace ingress-nginx \
+            --for=condition=Ready pod \
+            --selector=app.kubernetes.io/component=controller \
+            --timeout=120s
+
+      - name: Ingress Test (localhost)
+        run: |
+          kubectl get ingress -n demo
+          kubectl port-forward svc/ingress-nginx-controller -n ingress-nginx 8081:80 &
+          sleep 10
+          curl -sfH "Host: nginx-demo.local" http://localhost:8081/ | grep "K8s Demo via Terraform"
+
+      # HPA тест (если нужен)
+      - name: Check HPA Status
+        run: |
+          kubectl get hpa nginx-hpa -n demo
+
+      # ---------------------------------------------------------
+
+      - name: Terraform Destroy
+        if: always()
+        run: terraform destroy -auto-approve
+
       - name: Delete Kind Cluster
         if: always()
         run: kind delete cluster
