@@ -1,0 +1,68 @@
+name: Terraform E2E (Kind)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  terraform-e2e:
+    runs-on: ubuntu-latest
+    env:
+      TF_VAR_demo_password: testpassword123
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install Kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Create Kind cluster
+        run: kind create cluster --name tf-e2e --wait 60s
+
+      - name: Set KUBECONFIG env
+        run: echo "KUBECONFIG=$(kind get kubeconfig-path --name=tf-e2e)" >> $GITHUB_ENV
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -lock=false
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Wait for Nginx pods
+        run: |
+          kubectl wait --for=condition=available --timeout=60s deployment/nginx-demo -n demo
+
+      - name: Smoke test: Check Nginx Service
+        run: |
+          kubectl get svc -n demo
+          kubectl get pods -n demo
+          NODE_PORT=$(kubectl get svc nginx-service -n demo -o jsonpath='{.spec.ports[0].nodePort}')
+          POD_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[0].address}')
+          echo "Try to access: http://$POD_IP:$NODE_PORT"
+          curl --fail --max-time 10 "http://localhost:$NODE_PORT" || (echo "Nginx not available!" && exit 1)
+
+      - name: Terraform Destroy
+        if: always()
+        run: terraform destroy -auto-approve
+
+      - name: Delete Kind cluster
+        if: always()
+        run: kind delete cluster --name tf-e2e
