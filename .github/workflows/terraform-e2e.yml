@@ -10,6 +10,8 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      TF_VAR_demo_password: testpassword123   # <--- Секрет на весь job!
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
