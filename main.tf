@@ -7,7 +7,7 @@ resource "kubernetes_namespace" "demo" {
   metadata {
     name = "demo"
   }
-}   
+}
 
 resource "kubernetes_config_map" "nginx_config" {
   metadata {
@@ -64,7 +64,7 @@ resource "kubernetes_persistent_volume_claim" "demo_pvc" {
     namespace = kubernetes_namespace.demo.metadata[0].name
   }
   spec {
-    access_modes       = ["ReadWriteOnce"]
+    access_modes = ["ReadWriteOnce"]
     resources {
       requests = {
         storage = "1Gi"
