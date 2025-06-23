@@ -15,26 +15,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform Format (auto-fix)
-        run: terraform fmt -recursive
-
-      - name: Commit & Push if changed
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          if ! git diff --cached --quiet; then
-            git commit -m "ci: terraform auto-format"
-            git push https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
-          else
-            echo "Nothing to commit."
-          fi
-
       - name: Install Kind & Kubectl
         run: |
           curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
@@ -51,11 +31,14 @@ jobs:
         run: |
           kubectl rollout status deployment/coredns -n kube-system --timeout=90s
 
-      # Prepare hostPath for PV BEFORE terraform apply!
+      # --- CRITICAL: prepare hostPath for PV ---
       - name: Prepare hostPath for PV (Kind)
         run: |
           docker exec kind-control-plane mkdir -p /tmp/demo-data
           docker exec kind-control-plane chmod 777 /tmp/demo-data
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
         run: terraform init
@@ -97,7 +80,7 @@ jobs:
           sleep 5
           curl -sf http://localhost:8080 | grep "K8s Demo via Terraform"
 
-      # Для Ingress — установка ingress-nginx-контроллера, если нужно:
+      # Для Ingress — установка ingress-nginx-контроллера
       - name: Install Ingress Controller (ingress-nginx)
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/kind/deploy.yaml
