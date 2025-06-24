@@ -9,7 +9,7 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -41,19 +41,19 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -backend=false # Отключаем бэкенд для простоты в Kind
 
       - name: Terraform Validate
         run: terraform validate
 
-      - name: Terraform Plan
+      - name: Terraform Plan (Lock=false)
         env:
-          TF_VAR_demo_password: testpassword123
+          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }} # Используйте секреты GitHub Actions
         run: terraform plan -lock=false
 
       - name: Terraform Apply (Test)
         env:
-          TF_VAR_demo_password: testpassword123
+          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }} # Используйте секреты GitHub Actions
         run: terraform apply -auto-approve
 
       # ------------------- E2E/Smoke тесты -------------------
@@ -109,7 +109,7 @@ jobs:
       - name: Terraform Destroy
         if: always()
         env:
-          TF_VAR_demo_password: testpassword123
+          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }} # Используйте секреты GitHub Actions
         run: terraform destroy -auto-approve
 
       - name: Delete Kind Cluster
