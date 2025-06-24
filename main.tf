@@ -2,16 +2,10 @@ provider "kubernetes" {
   config_path = "~/.kube/config"
 }
 
-resource "kubernetes_namespace" "demo" {
-  metadata {
-    name = "demo"
-  }
-}
-
 resource "kubernetes_config_map" "nginx_config" {
   metadata {
     name      = "nginx-config"
-    namespace = kubernetes_namespace.demo.metadata[0].name
+    namespace = "demo"
   }
   data = {
     demo_title   = "K8s Demo via Terraform"
@@ -30,7 +24,7 @@ EOT
 resource "kubernetes_secret" "nginx_secrets" {
   metadata {
     name      = "nginx-secrets"
-    namespace = kubernetes_namespace.demo.metadata[0].name
+    namespace = "demo"
   }
   data = {
     DEMO_PASSWORD = base64encode(var.demo_password)
@@ -41,7 +35,7 @@ resource "kubernetes_secret" "nginx_secrets" {
 resource "kubernetes_deployment" "nginx" {
   metadata {
     name      = "nginx-demo"
-    namespace = kubernetes_namespace.demo.metadata[0].name
+    namespace = "demo"
     labels = {
       app = "nginx-demo"
     }
@@ -120,7 +114,7 @@ resource "kubernetes_deployment" "nginx" {
 resource "kubernetes_service" "nginx" {
   metadata {
     name      = "nginx-service"
-    namespace = kubernetes_namespace.demo.metadata[0].name
+    namespace = "demo"
   }
   spec {
     selector = {
@@ -138,7 +132,7 @@ resource "kubernetes_service" "nginx" {
 resource "kubernetes_horizontal_pod_autoscaler_v2" "nginx" {
   metadata {
     name      = "nginx-hpa"
-    namespace = kubernetes_namespace.demo.metadata[0].name
+    namespace = "demo"
   }
   spec {
     scale_target_ref {
@@ -164,7 +158,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "nginx" {
 resource "kubernetes_ingress_v1" "nginx_ingress" {
   metadata {
     name      = "nginx-ingress"
-    namespace = kubernetes_namespace.demo.metadata[0].name
+    namespace = "demo"
     annotations = {
       "nginx.ingress.kubernetes.io/rewrite-target" = "/"
     }
