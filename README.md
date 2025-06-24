@@ -1,6 +1,6 @@
-✅ Terraform + Kubernetes End-to-End Tests mit GitHub Actions
+# ✅ Terraform + Kubernetes End-to-End Tests mit GitHub Actions
 
-
+![CI Status](https://github.com/justrunme/terraform-k8s-e2e/actions/workflows/e2e.yml/badge.svg)
 
 Willkommen! Dieses Repository enthält eine vollständige E2E-Test-Pipeline für eine Kubernetes-Anwendung, die automatisiert mit Terraform, Kind, Ingress NGINX und GitHub Actions bereitgestellt und getestet wird.
 
