@@ -54,9 +54,6 @@ jobs:
               path: /tmp/demo-data
           EOF
 
-      - name: Create demo namespace
-        run: kubectl create ns demo || true
-
       - name: Create demo-pvc
         run: |
           cat <<EOF | kubectl apply -f -
