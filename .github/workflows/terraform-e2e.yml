@@ -18,11 +18,8 @@ jobs:
       - name: Install Kind & Kubectl
         run: |
           curl -LO "https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64"
-          chmod +x kind
+          sudo chmod +x kind
           mv kind /usr/local/bin/kind
-          curl -LO "https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          mv kubectl /usr/local/bin/kubectl
 
       - name: Install Terraform
         run: |
@@ -64,7 +61,7 @@ jobs:
 
       - name: Wait for Demo Namespace
         run: |
-          for i in {1..30}; do kubectl get ns demo && break || sleep 2; done
+          for i in {1..30}; do kubectl get ns demo && break || sleep 8; done
 
       - name: Wait for NGINX Pods
         run: |
