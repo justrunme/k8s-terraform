@@ -2,6 +2,8 @@
 
 [![Terraform E2E Tests](https://github.com/justrunme/k8s-terraform/actions/workflows/terraform-e2e.yml/badge.svg)](https://github.com/justrunme/k8s-terraform/actions/workflows/terraform-e2e.yml)
 
+[![Terraform AutoFmt](https://github.com/justrunme/k8s-terraform/actions/workflows/terraform.yaml/badge.svg)](https://github.com/justrunme/k8s-terraform/actions/workflows/terraform.yaml)
+
 Willkommen! Dieses Repository enthält eine vollständige E2E-Test-Pipeline für eine Kubernetes-Anwendung, die automatisiert mit Terraform, Kind, Ingress NGINX und GitHub Actions bereitgestellt und getestet wird.
 
 
