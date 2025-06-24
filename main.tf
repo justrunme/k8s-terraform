@@ -2,7 +2,6 @@ provider "kubernetes" {
   config_path = "~/.kube/config"
 }
 
-
 resource "kubernetes_namespace" "demo" {
   metadata {
     name = "demo"
@@ -37,42 +36,6 @@ resource "kubernetes_secret" "nginx_secrets" {
     DEMO_PASSWORD = base64encode(var.demo_password)
   }
   type = "Opaque"
-}
-
-resource "kubernetes_persistent_volume" "demo_pv" {
-  metadata {
-    name = "demo-pv"
-  }
-  spec {
-    capacity = {
-      storage = "1Gi"
-    }
-    access_modes       = ["ReadWriteOnce"]
-    storage_class_name = ""
-    persistent_volume_source {
-      host_path {
-        path = "/tmp/demo-data"
-      }
-    }
-    persistent_volume_reclaim_policy = "Retain"
-  }
-}
-
-resource "kubernetes_persistent_volume_claim" "demo_pvc" {
-  metadata {
-    name      = "demo-pvc"
-    namespace = kubernetes_namespace.demo.metadata[0].name
-  }
-  spec {
-    access_modes = ["ReadWriteOnce"]
-    resources {
-      requests = {
-        storage = "1Gi"
-      }
-    }
-    storage_class_name = ""
-    volume_name        = kubernetes_persistent_volume.demo_pv.metadata[0].name
-  }
 }
 
 resource "kubernetes_deployment" "nginx" {
@@ -131,31 +94,13 @@ resource "kubernetes_deployment" "nginx" {
               memory = "64Mi"
             }
           }
-          liveness_probe {
-            http_get {
-              path = "/"
-              port = 80
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 10
-          }
-          readiness_probe {
-            http_get {
-              path = "/"
-              port = 80
-            }
-            initial_delay_seconds = 3
-            period_seconds        = 5
-          }
+
           volume_mount {
             name       = "html"
-            mount_path = "/usr/share/nginx/html/index.html"
-            sub_path   = "index.html"
+            mount_path = "/usr/share/nginx/html/"
+            sub_path   = ""
           }
-          volume_mount {
-            name       = "demo-pvc"
-            mount_path = "/mnt/data"
-          }
+
         }
         volume {
           name = "html"
@@ -165,12 +110,6 @@ resource "kubernetes_deployment" "nginx" {
               key  = "index.html"
               path = "index.html"
             }
-          }
-        }
-        volume {
-          name = "demo-pvc"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.demo_pvc.metadata[0].name
           }
         }
       }
