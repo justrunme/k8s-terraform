@@ -1,4 +1,4 @@
-# ✅ Финальный GitHub Actions Workflow — с фиксами PVC + стабильный Ingress без hostPort
+# ✅ Финальный GitHub Actions Workflow — стабильный PVC + Ingress с nodeSelector fix
 
 name: Terraform E2E Test
 
@@ -128,6 +128,11 @@ jobs:
           kubectl port-forward svc/nginx-service 30080:80 -n demo &
           sleep 5
           curl -sf http://localhost:30080 | grep "K8s Demo via Terraform"
+
+      - name: Label Kind node as ingress-ready
+        run: |
+          NODE=$(kubectl get nodes -o name | sed 's/node\///')
+          kubectl label node $NODE ingress-ready=true --overwrite
 
       - name: Install Ingress Controller (patched)
         run: |
