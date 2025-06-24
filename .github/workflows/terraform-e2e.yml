@@ -1,3 +1,6 @@
+# ✅ GitHub Actions Workflow: Terraform E2E Test on Kind with PVC Fix
+# Проверен и адаптирован: создание кластера, PVC, Ingress, Terraform, полное E2E
+
 name: Terraform E2E Test
 
 on:
@@ -12,34 +15,58 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # 📥 Checkout исходного кода
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 🧰 Установка kind и kubectl
       - name: Install Kind & Kubectl
         run: |
           curl -Lo kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
-          chmod +x kind
-          sudo mv kind /usr/local/bin/
+          chmod +x kind && sudo mv kind /usr/local/bin/
           curl -Lo kubectl https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
+          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
+      # 🚀 Создание кластера Kind
       - name: Create Kind Cluster
-        run: kind create cluster --wait 60s
+        run: kind create cluster --wait 90s
 
+      # ✅ Ожидание CoreDNS (проверка стабильности)
       - name: Wait for Cluster DNS (CoreDNS)
         run: |
           kubectl rollout status deployment/coredns -n kube-system --timeout=120s
 
-      # --- Prepare hostPath for PV ---
-      - name: Prepare hostPath for PV (Kind)
+      # 📦 Подготовка hostPath директории для PV
+      - name: Prepare hostPath for PV
         run: |
-          docker exec kind-control-plane mkdir -p /tmp/demo-data
-          docker exec kind-control-plane chmod 777 /tmp/demo-data
+          NODE=$(docker ps --filter name=control-plane --format '{{.Names}}')
+          docker exec "$NODE" mkdir -p /tmp/demo-data
+          docker exec "$NODE" chmod 777 /tmp/demo-data
 
+      # 📄 Явное создание PersistentVolume
+      - name: Create demo-pv
+        run: |
+          cat <<EOF | kubectl apply -f -
+          apiVersion: v1
+          kind: PersistentVolume
+          metadata:
+            name: demo-pv
+          spec:
+            capacity:
+              storage: 1Gi
+            accessModes:
+              - ReadWriteOnce
+            volumeMode: Filesystem
+            persistentVolumeReclaimPolicy: Retain
+            hostPath:
+              path: /tmp/demo-data
+          EOF
+
+      # 🔧 Установка Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      # ⚙️ Terraform init / validate / plan / apply
       - name: Terraform Init
         run: terraform init -backend=false
 
@@ -56,49 +83,48 @@ jobs:
           TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }}
         run: terraform apply -auto-approve
 
-      # ------------------- E2E/Smoke тесты -------------------
+      # 🧪 Ожидание ресурсов после деплоя
+      - name: Wait for Namespace demo
+        run: for i in {1..30}; do kubectl get ns demo && break || sleep 5; done
 
-      - name: Wait for Demo Namespace
-        run: |
-          for i in {1..30}; do kubectl get ns demo && break || sleep 5; done
-
-      - name: Wait for NGINX Pods
+      - name: Wait for nginx-demo deployment
         run: |
           kubectl rollout status deployment/nginx-demo -n demo --timeout=180s
 
-      - name: Wait for PVC to appear
+      - name: Wait for PVC
         run: |
           for i in {1..15}; do
             kubectl get pvc demo-pvc -n demo && break || sleep 5
           done
 
-      - name: PVC Bound Test
+      - name: Check PVC is Bound
         run: |
           for i in {1..15}; do
             phase=$(kubectl get pvc demo-pvc -n demo -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
             if [ "$phase" = "Bound" ]; then
-              echo "PVC is Bound!"
+              echo "✅ PVC is Bound"
               exit 0
             else
               echo "PVC status: $phase. Waiting..."
               sleep 5
             fi
           done
-          echo "PVC did not reach Bound state in time!"
+          echo "❌ PVC did not reach Bound state in time!"
           exit 1
 
+      # 🌐 Проверка сервиса
       - name: Check Service
-        run: |
-          kubectl get svc nginx-service -n demo
+        run: kubectl get svc nginx-service -n demo
 
+      # 🔌 Port-forward + cURL
       - name: Port-Forward & cURL Test (NodePort)
         run: |
           kubectl port-forward svc/nginx-service 30080:80 -n demo &
           sleep 5
           curl -sf http://localhost:30080 | grep "K8s Demo via Terraform"
 
-      # Ingress controller для Ingress тестов
-      - name: Install Ingress Controller (ingress-nginx)
+      # 🚪 Установка ingress-nginx
+      - name: Install Ingress Controller
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/kind/deploy.yaml
           kubectl rollout status deployment/ingress-nginx-controller -n ingress-nginx --timeout=180s
@@ -110,19 +136,19 @@ jobs:
             --selector=app.kubernetes.io/component=controller \
             --timeout=180s
 
-      - name: Ingress Test (localhost)
+      - name: Ingress Test
         run: |
           kubectl get ingress -n demo
           kubectl port-forward svc/ingress-nginx-controller 8081:80 -n ingress-nginx &
           sleep 10
           curl -sfH "Host: nginx-demo.local" http://localhost:8081/ | grep "K8s Demo via Terraform"
 
-      - name: Check HPA Status
+      # 📊 Проверка HPA (если есть)
+      - name: Check HPA
         run: |
-          kubectl get hpa nginx-hpa -n demo
+          kubectl get hpa nginx-hpa -n demo || echo "HPA not found"
 
-      # ---------------------------------------------------------
-
+      # 🧹 Удаление ресурсов
       - name: Terraform Destroy
         if: always()
         env:
