@@ -15,15 +15,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Download Terraform
+        run: |
+          curl -fsSL https://releases.hashicorp.com/terraform/1.7.5/terraform_1.7.5_linux_amd64 | sudo tee /usr/local/bin/terraform
+          chmod +x /usr/local/bin/terraform
+
+      - name: Check Terraform installation
+        run: |
+          terraform version
+
       - name: Install Kind & Kubectl
         run: |
           curl -LO "https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64"
           sudo chmod +x kind
           mv kind /usr/local/bin/kind
-
-      - name: Install Terraform
-        run: |
-          sudo apt update && sudo apt install -y terraform
 
       - name: Create Kind Cluster
         run: kind create cluster --wait 60s
