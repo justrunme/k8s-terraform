@@ -15,20 +15,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Terraform
-        run: |
-          curl -fsSL https://releases.hashicorp.com/terraform/1.7.5/terraform_1.7.5_linux_amd64 | sudo tee /usr/local/bin/terraform
-          chmod +x /usr/local/bin/terraform
-
-      - name: Check Terraform installation
-        run: |
-          terraform version
-
       - name: Install Kind & Kubectl
         run: |
-          curl -LO "https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64"
-          sudo chmod +x kind
-          mv kind /usr/local/bin/kind
+          curl -Lo kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+          chmod +x kind
+          sudo mv kind /usr/local/bin/kind
+
+          curl -LO "https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/kubectl
 
       - name: Create Kind Cluster
         run: kind create cluster --wait 60s
@@ -37,7 +32,6 @@ jobs:
         run: |
           kubectl rollout status deployment/coredns -n kube-system --timeout=90s
 
-      # --- CRITICAL: prepare hostPath for PV ---
       - name: Prepare hostPath for PV (Kind)
         run: |
           docker exec kind-control-plane mkdir -p /tmp/demo-data
@@ -47,19 +41,19 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        run: terraform init -backend=false  # Инициализация Terraform перед уничтожением
+        run: terraform init -backend=false
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan (Lock=false)
         env:
-          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }} # Используйте секреты GitHub Actions
+          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }}   # <-- Секрет лучше задать в настройках Actions
         run: terraform plan -lock=false
 
       - name: Terraform Apply (Test)
         env:
-          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }} # Используйте секреты GitHub Actions
+          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }}
         run: terraform apply -auto-approve
 
       # ------------------- E2E/Smoke тесты -------------------
@@ -115,9 +109,9 @@ jobs:
       - name: Terraform Destroy
         if: always()
         env:
-          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }} # Используйте секреты GitHub Actions
+          TF_VAR_demo_password: ${{ secrets.DEMO_PASSWORD }}
         run: |
-          terraform init -backend=false  # Инициализация Terraform перед уничтожением
+          terraform init -backend=false
           terraform destroy -auto-approve
 
       - name: Delete Kind Cluster
