@@ -1,4 +1,4 @@
-# ✅ GitHub Actions Workflow: Финальный рабочий вариант — Terraform E2E с Kind, PV/PVC, NGINX, Ingress и проверками
+# ✅ Финальный GitHub Actions Workflow — с фиксами Pending PVC (StorageClass)
 
 name: Terraform E2E Test
 
@@ -36,7 +36,7 @@ jobs:
           docker exec "$NODE" mkdir -p /tmp/demo-data
           docker exec "$NODE" chmod 777 /tmp/demo-data
 
-      - name: Create demo-pv
+      - name: Create demo-pv (manual StorageClass)
         run: |
           cat <<EOF | kubectl apply -f -
           apiVersion: v1
@@ -50,11 +50,12 @@ jobs:
               - ReadWriteOnce
             volumeMode: Filesystem
             persistentVolumeReclaimPolicy: Retain
+            storageClassName: manual
             hostPath:
               path: /tmp/demo-data
           EOF
 
-      - name: Create demo-pvc
+      - name: Create demo-pvc (manual StorageClass)
         run: |
           kubectl create ns demo || true
           cat <<EOF | kubectl apply -f -
@@ -70,6 +71,7 @@ jobs:
               requests:
                 storage: 1Gi
             volumeName: demo-pv
+            storageClassName: manual
           EOF
 
       - name: Setup Terraform
