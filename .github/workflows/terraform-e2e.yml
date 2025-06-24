@@ -17,12 +17,12 @@ jobs:
 
       - name: Install Kind & Kubectl
         run: |
-          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
-          chmod +x ./kind
-          sudo mv ./kind /usr/local/bin/kind
+          curl -LO "https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64"
+          chmod +x kind
+          mv kind /usr/local/bin/kind
           curl -LO "https://dl.k8s.io/release/v1.29.0/bin/linux/amd64/kubectl"
           chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
+          mv kubectl /usr/local/bin/kubectl
 
       - name: Create Kind Cluster
         run: kind create cluster --wait 60s
@@ -76,9 +76,9 @@ jobs:
 
       - name: Port-Forward & cURL Test (NodePort)
         run: |
-          kubectl port-forward svc/nginx-service 8080:80 -n demo &
+          kubectl port-forward svc/nginx-service 30080:80 -n demo &
           sleep 5
-          curl -sf http://localhost:8080 | grep "K8s Demo via Terraform"
+          curl -sf http://localhost:30080 | grep "K8s Demo via Terraform"
 
       # Для Ingress — установка ingress-nginx-контроллера
       - name: Install Ingress Controller (ingress-nginx)
@@ -96,7 +96,7 @@ jobs:
       - name: Ingress Test (localhost)
         run: |
           kubectl get ingress -n demo
-          kubectl port-forward svc/ingress-nginx-controller -n ingress-nginx 8081:80 &
+          kubectl port-forward svc/ingress-nginx-controller 8081:80 -n ingress-nginx &
           sleep 10
           curl -sfH "Host: nginx-demo.local" http://localhost:8081/ | grep "K8s Demo via Terraform"
 
